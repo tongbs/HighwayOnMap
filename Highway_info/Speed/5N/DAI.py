@@ -1,13 +1,13 @@
 import time, DAN, requests, random , json , math
-import socket,re
+import socket, re
 from datetime import datetime
 
-ServerURL = 'https://test.iottalk.tw' #with no secure connection
+ServerURL = 'https://map.iottalk.tw' #with no secure connection
 #ServerURL = 'https://DomainName' #with SSL connection
-Reg_addr = 'highwayfiveN' #if None, Reg_addr = MAC address
+Reg_addr = 'HighwayFiveN' #if None, Reg_addr = MAC address
 
-DAN.profile['dm_name']='highway5N'
-DAN.profile['df_list']=['highway5Ndata']
+DAN.profile['dm_name']='Highway5N'
+DAN.profile['df_list']=['Highway5N-TI']
 DAN.profile['d_name']= None # None for autoNaming
 DAN.device_registration_with_retry(ServerURL, Reg_addr)
 time.sleep(10)
@@ -21,12 +21,33 @@ class my_dictionary(dict):
     def add(self, key, value):  
         self[key] = value
 
-with open('fixed_5N_location.json','r') as reader:
+with open('fixN.json','r') as reader:
     jf = json.loads(reader.read())
 
-def get_speedmsg(req_msg):
-    tmp_msg = req_msg  #如果封包遺失的話可以藉由tmp_msg重新request
-    msgFromClient = req_msg
+def get_first_speedmsg():
+    #request msg first 40km
+    msgFromClient = "國5 N 15.0"
+    bytesToSend = str.encode(msgFromClient)
+    serverAddressPort = ("140.113.203.216",54710)
+    bufferSize = 1024
+    #create a UDP socket form client side
+    UDPClientSocket = socket.socket(family = socket.AF_INET,type = socket.SOCK_DGRAM)
+    #Send to server using created UDP socket
+    UDPClientSocket.sendto(bytesToSend,serverAddressPort)
+    UDPClientSocket.settimeout(5)
+    try:
+        msgFromServer = UDPClientSocket.recvfrom(bufferSize)
+    except socket.timeout as error:
+        UDPClientSocket.close()
+        print("first speed msg udp package lost")
+        get_first_speedmsg()
+    msg = "{} ".format(msgFromServer[0])
+    UDPClientSocket.close()
+    return msg
+
+def get_second_speedmsg():
+    #request msg next 40km
+    msgFromClient = "國5 N 55.0"
     bytesToSend = str.encode(msgFromClient)
     serverAddressPort = ("140.113.203.216",54710)
     bufferSize = 4096
@@ -34,53 +55,57 @@ def get_speedmsg(req_msg):
     UDPClientSocket = socket.socket(family = socket.AF_INET,type = socket.SOCK_DGRAM)
     #Send to server using created UDP socket
     UDPClientSocket.sendto(bytesToSend,serverAddressPort)
-    UDPClientSocket.settimeout(3)
+    UDPClientSocket.settimeout(5)
     try:
         msgFromServer = UDPClientSocket.recvfrom(bufferSize)
     except socket.timeout as error:
+        print("second speed msg udp package lost")
         UDPClientSocket.close()
-        print("Speed msg UDP package lost")
-        get_speedmsg(tmp_msg)
+        get_second_speedmsg()
     msg = "{} ".format(msgFromServer[0])
-    UDPClientSocket.close() 
+    UDPClientSocket.close()
     return msg
 
 while True:
     try:
-        speedmsg_15 = True  #國五北上0~15km的車速資料
-        speedmsg_55 = False #國五北上15~50km的車速資料
-        if(speedmsg_15):
-            speedmsg_55 = True
-            newmsg = get_speedmsg("國5 N 15.0")
-            newmsg = newmsg.replace("n","i")    #以下進行資料處理
+        s_15 = True  #0~15kmp
+        s_55 = False #15~50kmp
+        if(s_15):
+            s_55 = True
+           
+            newmsg = get_first_speedmsg()
+
+            newmsg = newmsg.replace("n","i")
             newmsg = newmsg.replace("t","j")
             newmsg = newmsg.replace("\i",",")
             newmsg = newmsg.replace("\j",":")
-            first_fifteen = newmsg.split(',')             #first_fifteen store 0~15km data
-            #print(first_fifteen)
+            first_fifteen = newmsg.split(',')   #first_forty store前40km data
             first_fifteen.pop()
             first_fifteen.pop(0)
             #print(first_fifteen)
-            first_fifteen_d = my_dictionary();         #use dictionary to store kmp/speed
+
+            first_fifteen_d = my_dictionary();  #use dictionary to store kmp/speed
             for i in range(len(first_fifteen)):
                 kmp1 = first_fifteen[i].split(':')
                 first_fifteen_d.add(math.floor(float(kmp1[0])),kmp1[1])
             #print(first_fifteen_d)
-        if(speedmsg_55):
-            newmsg1 = get_speedmsg("國5 N 55.0")
-            newmsg1 = newmsg1.replace("n","i")    #以下進行資料處理
+        if(s_55):
+            
+            newmsg1 = get_second_speedmsg()
+
+            newmsg1 = newmsg1.replace("n","i")
             newmsg1 = newmsg1.replace("t","j")
             newmsg1 = newmsg1.replace("\i",",")
             newmsg1 = newmsg1.replace("\j",":")
-            second_55 = newmsg1.split(',')                #second_55 store 15~50km data
+            second_55 = newmsg1.split(',')   #first_forty store前40km data
             second_55.pop()
             second_55.pop(0)
-            second_55_d = my_dictionary();               #use dictionary to store kmp/speed
+
+            second_55_d = my_dictionary();  #use dictionary to store kmp/speed
             for i in range(len(second_55)):
                 kmp1 = second_55[i].split(':')
                 second_55_d.add(math.floor(float(kmp1[0])),kmp1[1])
             #print(second_55_d)
-                
         print("-----------json match------------")
         a = len(jf['segmentList'])
         for i in range(0,a):
@@ -113,12 +138,12 @@ while True:
                 if(kmp>51):
                     realtimespeed = list(second_55_d.values())[0]
                 print(ID,lat,log,kmp,realtimespeed,datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                DAN.push ('highway5Ndata', lat, log,"國五北上 "+str(kmp)+" km",realtimespeed, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                time.sleep(0.1)
+                DAN.push ('Highway5N-TI', lat, log,"國五N_kmp"+str(kmp),realtimespeed, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                time.sleep(0.5)
         print("-------------------------------------------------")
         first_fifteen_d.clear()
         second_55_d.clear()
-        time.sleep(120)
+        time.sleep(180)
 
     except Exception as e:
         print(e)

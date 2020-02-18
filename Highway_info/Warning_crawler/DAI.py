@@ -8,8 +8,17 @@ def crawl_site(url):
     headers = {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36'
     }
-    res = requests.get(url, headers=headers)
-    return res
+    while 1:
+        try:
+            res = requests.get(url, headers=headers)
+            return res
+        except:
+            print("crawler failed sorry!")
+            print("Let me sleep 10 seconds")
+            print("Zzzzz...")
+            time.sleep(10)
+            print("Nice sleep , let me continue....")
+            continue
 
 def get_element(site_json):
     global accident_list
@@ -98,12 +107,12 @@ def get_element(site_json):
 
 
 import time, DAN, requests, random
-ServerURL = 'http://140.113.199.188:9999' #with no secure connection
-Reg_addr = 'accident_crawler' #if None, Reg_addr = MAC address
+ServerURL = 'https://map.iottalk.tw' #with no secure connection
+Reg_addr = 'AccidentInfo5' #if None, Reg_addr = MAC address
 
-DAN.profile['dm_name'] = 'accident_crawler'
-DAN.profile['df_list'] = ['accident_info']
-DAN.profile['d_name'] = 'accident_crawler' # None for autoNaming
+DAN.profile['dm_name'] = 'AccidentInfo5'
+DAN.profile['df_list'] = ['AccidentInfo-TI']
+DAN.profile['d_name'] = 'AccidentInfo5' # None for autoNaming
 DAN.device_registration_with_retry(ServerURL, Reg_addr)
 
 time.sleep(15)
@@ -119,7 +128,7 @@ while True:
 
         for single_new_accident in new_accidents:
             print(single_new_accident)
-            DAN.push ('accident_info', single_new_accident[0], single_new_accident[1], single_new_accident[2], single_new_accident[3], single_new_accident[4])   
+            DAN.push ('AccidentInfo-TI', single_new_accident[0], single_new_accident[1], single_new_accident[2], single_new_accident[3], single_new_accident[4])   
             time.sleep(1)
         
         new_accidents = []
@@ -134,4 +143,4 @@ while True:
             print('Connection failed due to unknow reasons.')
             time.sleep(1)    
     
-    time.sleep(60)
+    time.sleep(180)
